@@ -2,4 +2,4 @@
 seaver is a simple http server, epoll + non-blocking I/O. 
 
 ## complie and run
-> mkdir obj/ && make && ./seaver
+> make && ./seaver
