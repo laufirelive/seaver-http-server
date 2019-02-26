@@ -15,6 +15,6 @@
         {
           "events_max" : 1024  
         },
-        "location" : "web/java"  
+        "location" : "web/java-api-website"  
     }
 }

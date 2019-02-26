@@ -59,29 +59,18 @@ void request_handle(struct http_request *header)
     } while (!str_len && recv_len > 0);
 
     recv_len = strlen(message_buf);
-    
-    log("recv_len %d", recv_len);
-    puts(message_buf);
 
+#if (DBG == 1)
+    // 打印报文
+    puts(message_buf);
+    log("recv_len %d", recv_len);
+#endif
 
     if (recv_len < 4)
     {
         log_err("Client Message is too short.");
         goto ERROR;
     }
-    
-/*     // 最后是否 \r\n\r\n 结尾
-    if (
-        message_buf[recv_len - 4] != CR ||
-        message_buf[recv_len - 2] != CR ||
-        message_buf[recv_len - 3] != LF ||
-        message_buf[recv_len - 1] != LF
-    )
-    {
-        log_err("Client Message Format is wrong. %d", _fd);
-        goto ERROR;
-    }
- */
 
 
     // HTTP 请求报文分割
