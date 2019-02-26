@@ -1,2 +1,2 @@
 # seaver-http-server
-a simple http server with epoll + non-blocking I/O. 
+seaveris a simple http server, epoll + non-blocking I/O. 
