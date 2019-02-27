@@ -5,5 +5,5 @@
 # 忽略目标文件
 seaver
 
-# 忽略测试
+# 忽略测试网站
 /web/java-api-website/
