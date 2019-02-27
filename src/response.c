@@ -175,16 +175,17 @@ char *url_parse(struct http_response *response, char *file)
     char *r_file;
 
     int r_file_len;
+    // 文件名长度 = 配置 项目路径 的字符串长度 + url 长度 + 默认页面 长度
     r_file_len = sizeof(char) * (strlen(Configuration.loc) + strlen(file) + strlen(Configuration.default_page) + 1);
     r_file = (char *)malloc(r_file_len);
-
     memset(r_file, 0, r_file_len);
     memset(&file_stat, 0, sizeof(file_stat));
 
+    // 拼接文件名
     sprintf(r_file, "%s%s", Configuration.loc, file);
     
-TRY_AGAIN :
-
+ while (1)
+ {
     if (stat(r_file, &file_stat) == -1)
     {
         log_err("[%s] is not exist, errno: %d\t%s", r_file, errno, strerror(errno));
@@ -193,7 +194,7 @@ TRY_AGAIN :
     else if (S_ISDIR(file_stat.st_mode))
     {
         sprintf(r_file, "%s%s", r_file, Configuration.default_page);
-        goto TRY_AGAIN;
+        continue;
     }
     else if (!(S_ISREG(file_stat.st_mode)) || !(S_IRUSR & file_stat.st_mode))
     {
@@ -207,11 +208,14 @@ TRY_AGAIN :
     }
     
     response->file_type = get_file_type(r_file);
+    break;
+ }
 
+#if (DBG)
     log("file_name : %s", r_file);
     log("file_type : %s", response->file_type);
     log("file_leng : %lu", response->file_length);
+#endif
 
     return r_file;
 }
-

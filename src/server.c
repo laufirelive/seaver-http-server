@@ -216,34 +216,33 @@ void connection_wait(int serv_fd, int epoll_fd)
     int events_max = epoll_get_maxevents();
     struct http_request *header;
 
-// 无聊
-LOOP:
-
+ while (1)
+ {
     // 服务器开始处理连接
     ep_count = epoll_wait(epoll_fd, Events, events_max, -1);
     if (ep_count == -1)
     {
         log_err("epoll_wait(), errno: %d\t%s", errno, strerror(errno));
-        goto OUT;
+        break;
     }
 
     // 处理 活跃连接
     for (i = 0; i < ep_count; i++)
     {
-        log("epoll alive: %d", ep_count);
+        log("epoll Alive: %d event(s)", ep_count);
         header = (struct http_request *)Events[i].data.ptr;
         _fd = header->fd;
-
+        
+        // 新连接请求
         if (_fd == serv_fd)
         {
             // 处理 连接请求
+            log("New Connection");
             connection_handle(_fd, epoll_fd);
-            printf("\n\nConnected, Wait...\n\n");
+            log("Wait...");
         }
         else // TODO : 加入线程池队列
         {
-            printf("\n\nNew data from fd %d : \n", _fd);
-            
             // 处理请求
             request_handle(header);
 
@@ -252,12 +251,11 @@ LOOP:
             epoll_del(epoll_fd, _fd);
             _close(_fd);
 
-            printf("\n\nWait...\n\n");
+            log("Wait...");
         }
     }
-    goto LOOP;
 
-OUT:
+ }
     return ;
 }
 

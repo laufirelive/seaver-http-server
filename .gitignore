@@ -1,0 +1,9 @@
+
+# 忽略中间文件
+*.o
+
+# 忽略目标文件
+seaver
+
+# 忽略测试
+/web/java-api-website/

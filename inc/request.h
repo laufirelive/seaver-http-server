@@ -8,9 +8,10 @@
 
 // 请求行
 struct http_request_line {
-    char *method;
-    char *url;
-    char *version;
+    char *method;   // 方法
+    char *url;      // URL
+    char *url_para; // URL 后附带的参数
+    char *version;  // 版本
 };
 
 // 请求头部
@@ -48,12 +49,7 @@ struct http_request_method {
 };
 
 struct http_request *request_init(int _fd);
-
 void request_handle(struct http_request *header);
 void request_del(struct http_request *header);
-
-int request_GET(struct http_request *header);
-int request_POST(struct http_request *header);
-int request_HEAD(struct http_request *header);
 
 #endif
