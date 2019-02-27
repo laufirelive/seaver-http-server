@@ -6,21 +6,14 @@
 
 #define REQUEST_BUF_LEN 8196
 
+#include "../inc/list.h"
+
 // 请求行
 struct http_request_line {
     char *method;   // 方法
     char *url;      // URL
     char *url_para; // URL 后附带的参数
     char *version;  // 版本
-};
-
-// 请求头部
-struct http_request_head {
-    char *fields;
-    char *value;
-
-    struct http_request_head *next;
-    struct http_request_head *prev;
 };
 
 // 请求体
@@ -38,9 +31,9 @@ struct http_request {
     char message[REQUEST_BUF_LEN + 1];
 
     // 请求行 与 请求头
-    struct http_request_line request_line;
-    struct http_request_head *request_head;
-    struct http_request_body request_body;
+    struct http_request_line          request_line;
+    struct __http_request_head       *request_head;
+    struct http_request_body          request_body;
 };
 
 struct http_request_method {

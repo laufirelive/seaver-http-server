@@ -4,9 +4,8 @@
 #include "../inc/response.h"
 #include "../inc/epoll.h"
 #include "../inc/debug.h"
-#include "../inc/list.h"
 
-char *request_header_parse(char *rest);
+char *request_header_parse(char *rest, http_request_head *S);
 char *request_get_urlpara(char *url);
 void request_backward_space(char *val, int len);
 void request_forward_space(char *val);
@@ -32,7 +31,10 @@ struct http_request *request_init(int _fd)
     }
     
     memset(header, 0, sizeof(header));
+    memset(header->message, 0, REQUEST_BUF_LEN);
+    
     header->fd = _fd;
+    header->request_head = request_head_initStack();
 
     return header;
 }
@@ -113,12 +115,13 @@ void request_handle(struct http_request *header)
         log_err("Client Request is too short.");
         goto ERROR;
     }
-
+    
     // HTTP 请求报文分割
     header->request_line.method = strtok(message_buf, " /");
     header->request_line.url = strtok(NULL, " ");
     header->request_line.version = strtok(NULL, "\n");
     header->request_line.url_para = request_get_urlpara(header->request_line.url);
+    
 #if (DBG)
     log("Method : %s\n", header->request_line.method);
     log("Url : %s\n", header->request_line.url);
@@ -128,17 +131,29 @@ void request_handle(struct http_request *header)
 
     char *rest;
     rest = strtok(NULL, "\0");
-
+    
     // 请求头
-    rest = request_header_parse(rest);
+    rest = request_header_parse(rest, header->request_head);
+
     // 请求体
     if (rest && *rest)
     {
 #if (DBG)
-        printf("\nThe Rest : \n%s\n", rest);
+        printf("\nThe Body : \n%s\n", rest);
+#endif
+    }
+
+#if (DBG)
+    printf("\nThe Head : \n");
+    struct http_request_head_data temp_data;
+    while (!request_head_isEmpty(header->request_head))
+    {
+        request_head_pop(header->request_head, &temp_data);
+        printf("%s:%s\n\n", temp_data.field, temp_data.value);
+    }
+    putchar('\n');
 #endif
 
-    }
     // 解析 HTTP 请求行
     int loop_len = sizeof(Method) / sizeof(*Method);
     for (int i = 0; i < loop_len; i++)
@@ -151,9 +166,6 @@ void request_handle(struct http_request *header)
     }    
 
 ERROR:
-    
-    // 释放 回调 请求结构体
-    // 其 申请在 server.c 
 
     request_del(header);
     log("Connection Disconnected : %d", _fd);
@@ -162,7 +174,7 @@ ERROR:
 }
 
 
-char *request_header_parse(char *rest)
+char *request_header_parse(char *rest, http_request_head *S)
 {
     char *key, *val;
     char *p, *q;
@@ -183,18 +195,17 @@ char *request_header_parse(char *rest)
                 key_mode = 0; val_mode = 1;     // 第一个 冒号 为准
             }
             break;
-          case '\n' :
+          case LF :
             *rest = '\0';
             if (*key != '\0')
             {
                 int i;
                 request_backward_space(val, strlen(key));
                 request_forward_space(val);
-                // TODO : add to list
-#if (DBG)
-                log("%s:%s\n", key, val);
-#endif
-                // ----------------------
+
+                // 加入链表     
+                request_head_push(S, key, val);
+
                 if (val_mode)
                 {
                     key = rest + 1;
@@ -205,7 +216,7 @@ char *request_header_parse(char *rest)
                 return rest + 1;
 
             break;
-          case '\r' :
+          case CR :
             *rest = '\0';
             break;
           default:
@@ -268,8 +279,7 @@ char *request_get_urlpara(char *url)
 
 void request_del(struct http_request *header)
 {
-    // http_request_head_destroy(header->request_head);
-    memset(header, 0, sizeof(header));
+    memset(header->message, 0, REQUEST_BUF_LEN);
     free(header);
 }
 

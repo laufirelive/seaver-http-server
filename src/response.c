@@ -123,6 +123,10 @@ int response_handle_static(struct http_request *header)
 
     message_len = strlen(response.message);
 
+#if (DBG)
+    printf("\nResponse_head : \n%s\n", response.message);
+#endif
+
     // 发送 响应头
     if (_send(header->fd, response.message, message_len) != message_len)
     {
@@ -211,11 +215,11 @@ char *url_parse(struct http_response *response, char *file)
     break;
  }
 
-#if (DBG)
-    log("file_name : %s", r_file);
-    log("file_type : %s", response->file_type);
-    log("file_leng : %lu", response->file_length);
-#endif
+// #if (DBG)
+//     log("file_name : %s", r_file);
+//     log("file_type : %s", response->file_type);
+//     log("file_leng : %lu", response->file_length);
+// #endif
 
     return r_file;
 }

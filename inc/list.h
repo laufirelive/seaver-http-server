@@ -1,29 +1,25 @@
 #ifndef __LIST__
 #define __LIST__    1
 
-#include "request.h"
+struct http_request_head_data {
+    char *field;
+    char *value;
+};
+
+// 请求头部
+typedef struct __http_request_head {
+    struct http_request_head_data          data;
+    struct __http_request_head            *next;
+} http_request_head;
 
 // 请求链表
 
-struct http_request_head *
-    http_request_head_init();
+http_request_head *request_head_initStack();
 
-int 
-    http_request_head_add(struct http_request_head *L, char *fields, char *val);
+int request_head_isEmpty(http_request_head *S);
 
-int 
-    http_request_head_del(struct http_request_head *target);
+int request_head_push(http_request_head *S, char *f, char *v);
 
-int 
-    http_request_head_mod(struct http_request_head *L, char *val);
-
-struct http_request_head *
-    http_request_head_get(struct http_request_head *L, char *fields);
-
-struct http_request_head *
-    http_request_head_get_first(struct http_request_head *L);
-
-void
-    http_request_head_destroy(struct http_request_head *L);
+int request_head_pop(http_request_head *S, struct http_request_head_data *backup);
 
 #endif

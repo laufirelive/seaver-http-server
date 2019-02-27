@@ -4,118 +4,60 @@
 #include "../inc/list.h"
 
 
-struct http_request_head *http_request_head_init()
+http_request_head *request_head_initStack()
 {
-    struct http_request_head *L;
-
-    L = (struct http_request_head *)
-        malloc(sizeof(struct http_request_head));
-
-    if (!L)
-    {
-        log_err("malloc(), errno: %d\t%s", errno, strerror(errno));
-        return NULL;
-    }
-
-    L->fields  =  NULL;
-    L->value   =  NULL;
-    L->next    =  NULL;
-    L->prev    =  NULL;
-    
-    return L;
-}
-
-int http_request_head_add(struct http_request_head *L, char *fields, char *val)
-{
-    struct http_request_head *newNode;
-    
-    if (!L)
-        return -1;
-
-    newNode = (struct http_request_head *)malloc(sizeof(struct http_request_head));    
-    if (!newNode)
-    {
-        log_err("malloc(), errno: %d\t%s", errno, strerror(errno));
-        return -1;
-    }
-    
-    newNode->fields = fields;
-    newNode->value  = val;
-
-    newNode->next = L->next;
-    newNode->prev = L;
-
-    if (L->next)
-        L->next->prev = newNode;
-
-    L->next = newNode;
-    
-    return 0;
-}
-
-int http_request_head_del(struct http_request_head *target)
-{
-    if (!target)
-        return -1;
-
-    if (target->next)
-        target->next->prev = target->prev;
-
-    target->prev->next = target->next;
-
-    free(target);
-    return 0;
-}
-
-int http_request_head_mod(struct http_request_head *target, char *val)
-{
-    if (!target)
-        return -1;
-
-    target->value = val;
-
-    return 0;    
-}
-
-struct http_request_head *
-    http_request_head_get(struct http_request_head *L, char *fields)
-{
-    if (!L)
+    http_request_head *headNode;
+    headNode = (http_request_head *)malloc(sizeof(http_request_head));
+    if (!headNode)
         return NULL;
     
-    while (L = L->next)
+    headNode->data.field = NULL;
+    headNode->data.value = NULL;
+    headNode->next = NULL;
+
+    return headNode;
+}
+
+int request_head_isEmpty(http_request_head *S)
+{
+    if (S && S->next)
+        return 0;
+    else
+        return 1;
+}
+
+int request_head_push(http_request_head *S, char *f, char *v)
+{
+    http_request_head *headNode;
+    headNode = (http_request_head *)malloc(sizeof(http_request_head));
+    if (!headNode)
+        return 0;
+
+    if (!S)
     {
-        if (!strcmp(fields, L->fields))
-            return L;
+        free(headNode);
+        return 0;
     }
 
-    return NULL;
+    headNode->data.field = f;
+    headNode->data.value = v;
+    headNode->next = S->next;
+    S->next = headNode;   
+
+    return 1;
 }
 
-struct http_request_head *
-    http_request_head_get_first(struct http_request_head *L)
+int request_head_pop(http_request_head *S, struct http_request_head_data *backup)
 {
-    if (!L)
-        return NULL;
+    http_request_head *deleteMe;
+    if (!S || !(S->next))
+        return 0;
     
-    return L->next;
-}
+    deleteMe = S->next;
+    backup->field = deleteMe->data.field;
+    backup->value = deleteMe->data.value;
+    S->next = deleteMe->next;
+    free(deleteMe);
 
-void http_request_head_destroy(struct http_request_head *L)
-{
-    struct http_request_head *fir = http_request_head_get_first(L);
-    struct http_request_head *del;
-
-    while (fir)
-    {   
-        log("%s : %s", fir->fields, fir->value);
-        del = fir;
-        fir = fir->next;
-        http_request_head_del(del);
-    }
-
-    if (L)
-        free(L);
-
-    return ;
+    return 1;
 }

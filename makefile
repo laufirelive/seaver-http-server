@@ -4,7 +4,7 @@ TARGET = seaver
 
 # 编译及其参数
 CC = gcc
-CFLAG = -lm -DDBG=0
+CFLAG = -lm -DDBG=1
 
 # 目录
 OBJDIR = obj
@@ -18,7 +18,7 @@ EXTENSION = c
 SOURCES = $(foreach dir, $(SRCDIR), $(wildcard $(dir)/*.$(EXTENSION)))
 # 所有依赖的目标文件
 OBJECTS = $(patsubst  %.$(EXTENSION), $(OBJDIR)/%.o, $(notdir $(SOURCES)))
-	
+
 
 # 编译
 $(TARGET) : $(OBJECTS)
