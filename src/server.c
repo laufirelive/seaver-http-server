@@ -27,7 +27,6 @@ int conf_read()
     cJSON *http;
     cJSON *epoll;
     cJSON *location;
-    cJSON *default_page;
 
     conf_file = fopen(CONF_FILE, "r");
     if (!conf_file)
@@ -121,6 +120,12 @@ int conf_read()
             strncpy(Configuration.default_page, temp->valuestring, CONF_LOC_LEN);
         else
             strncpy(Configuration.default_page, DEFAULT_PAGE, CONF_LOC_LEN);
+
+        temp = cJSON_GetObjectItem(http, "error-page");
+        if (temp)
+            strncpy(Configuration.error_page, temp->valuestring, CONF_LOC_LEN);
+        else
+            memset(Configuration.error_page, 0, CONF_LOC_LEN);
 
         // and on
     }

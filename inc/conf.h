@@ -14,6 +14,8 @@ struct conf{
     // http
     int keep_alive;
     char default_page[CONF_LOC_LEN];
+    char error_page[CONF_LOC_LEN];
+
     // epoll
     int max_events;
 

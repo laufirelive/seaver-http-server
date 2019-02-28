@@ -145,14 +145,16 @@ void request_handle(struct http_request *header)
 
 #if (DBG)
     printf("\nThe Head : \n");
+#endif
     struct http_request_head_data temp_data;
     while (!request_head_isEmpty(header->request_head))
     {
         request_head_pop(header->request_head, &temp_data);
+#if (DBG)
         printf("%s:%s\n\n", temp_data.field, temp_data.value);
+#endif
     }
     putchar('\n');
-#endif
 
     // 解析 HTTP 请求行
     int loop_len = sizeof(Method) / sizeof(*Method);

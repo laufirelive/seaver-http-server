@@ -14,6 +14,8 @@
 
 char *url_parse(struct http_response *response, char *file);
 
+char error_message[LINE_BUF_LEN];
+
 struct mime_type Mime[] = {
     {".html", "text/html"},
     {".htm", "text/html"},
@@ -105,6 +107,26 @@ int response_handle_static(struct http_request *header)
     // 处理 URI, 查询 其 URI 是否 合法 存在 占用
     filename = url_parse(&response, header->request_line.url);
 
+    if (response.status != 200 && Configuration.error_page[0] == '\0')
+    {
+        sprintf(error_message,
+            "<html>"
+            "<head>"
+            "<meta charset=\"utf-8\">"
+            "<title>Seaver Server Error</title>"
+            "</head>"
+            "<body style=\"text-align: center\">"
+            "<h1>ERROR %d %s</h1>"
+            "<hr>"
+            "<p>This is the error page of Seaver Server.</p>"
+            "</body>"
+            "</html>"
+            , response.status, response_msg_code(response.status));
+
+        response.file_length = strlen(error_message);
+        response.file_type = "html";
+    }
+
     // 响应头 拼接
     sprintf(buf, "HTTP/1.1 %d %s\r\n", response.status, response_msg_code(response.status));
     strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
@@ -135,7 +157,7 @@ int response_handle_static(struct http_request *header)
     }
 
     // 发送 响应体
-    if (response.status == 200)
+    if (response.status == 200 || Configuration.error_page[0] != '\0')
     {
         // 打开文件
         if ((file_fd = open(filename, O_RDONLY)) == -1)
@@ -165,6 +187,17 @@ int response_handle_static(struct http_request *header)
         munmap(file_mem, response.file_length);
         log("Request has been Responsed.");
     }
+    else
+    {
+        puts(error_message);
+        if (_send(header->fd, error_message, response.file_length) != response.file_length)
+        {
+            log_err("sent failed");
+            goto ERROR;
+        }
+        log("Request has been Responsed.");
+    }
+    
 
 ERROR:
 
@@ -186,23 +219,36 @@ char *url_parse(struct http_response *response, char *file)
     memset(&file_stat, 0, sizeof(file_stat));
 
     // 拼接文件名
-    sprintf(r_file, "%s%s", Configuration.loc, file);
+    sprintf(r_file, "%s/%s", Configuration.loc, file);
     
  while (1)
  {
     if (stat(r_file, &file_stat) == -1)
     {
         log_err("[%s] is not exist, errno: %d\t%s", r_file, errno, strerror(errno));
+
+        sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
+        printf("\n%s\n", Configuration.error_page);
+        if (stat(r_file, &file_stat) == -1 || S_ISDIR(file_stat.st_mode))
+            memset(Configuration.error_page, 0, CONF_LOC_LEN);
+
         response->status = 404;
+        response->file_length = file_stat.st_size;
     }
     else if (S_ISDIR(file_stat.st_mode))
     {
-        sprintf(r_file, "%s%s", r_file, Configuration.default_page);
+        sprintf(r_file, "%s/%s", r_file, Configuration.default_page);
         continue;
     }
     else if (!(S_ISREG(file_stat.st_mode)) || !(S_IRUSR & file_stat.st_mode))
     {
         log_err("[%s] cannot be read, errno: %d\t%s", r_file, errno, strerror(errno));
+
+        sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
+        printf("\n%s\n", Configuration.error_page);
+        if (stat(r_file, &file_stat) == -1 || S_ISDIR(file_stat.st_mode))
+            memset(Configuration.error_page, 0, CONF_LOC_LEN);
+
         response->status = 403;
     }
     else
