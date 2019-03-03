@@ -3,6 +3,7 @@
 #include "../inc/request.h"
 #include "../inc/response.h"
 #include "../inc/epoll.h"
+#include "../inc/socket.h"
 #include "../inc/debug.h"
 
 char *request_header_parse(char *rest, http_request_head *S);
@@ -68,8 +69,9 @@ int request_legal_check(char *message)
         return 0;
 }
 
-void request_handle(struct http_request *header)
+void *request_handle(void *args)
 {
+    struct http_request *header = (struct http_request *)args;
     int _fd = header->fd;
     int epoll_fd = header->ep_fd;
     char *message_buf = header->message;
@@ -115,13 +117,16 @@ void request_handle(struct http_request *header)
         log_err("Client Request is too short.");
         goto ERROR;
     }
-    
+
+    // 线程安全 strtok， 巨坑
+    char *save;
+
     // HTTP 请求报文分割
-    header->request_line.method = strtok(message_buf, " /");
-    header->request_line.url = strtok(NULL, " ");
-    header->request_line.version = strtok(NULL, "\n");
+    header->request_line.method = __strtok_r(message_buf, " /", &save);
+    header->request_line.url = __strtok_r(NULL, " ", &save);
+    header->request_line.version = __strtok_r(NULL, "\n", &save);
     header->request_line.url_para = request_get_urlpara(header->request_line.url);
-    
+
 #if (DBG)
     log("Method : %s\n", header->request_line.method);
     log("Url : %s\n", header->request_line.url);
@@ -130,8 +135,7 @@ void request_handle(struct http_request *header)
 #endif
 
     char *rest;
-    rest = strtok(NULL, "\0");
-    
+    rest = __strtok_r(NULL, "\0", &save);
     // 请求头
     rest = request_header_parse(rest, header->request_head);
 
@@ -170,11 +174,14 @@ void request_handle(struct http_request *header)
 ERROR:
 
     request_del(header);
+    epoll_del(epoll_fd, _fd);
+    _close(_fd);
+
+#if (DBG)
     log("Connection Disconnected : %d", _fd);
-
-    return ;
+#endif
+    return NULL;
 }
-
 
 char *request_header_parse(char *rest, http_request_head *S)
 {
@@ -281,25 +288,31 @@ char *request_get_urlpara(char *url)
 
 void request_del(struct http_request *header)
 {
-    memset(header->message, 0, REQUEST_BUF_LEN);
+    // memset(header->message, 0, REQUEST_BUF_LEN);
     free(header);
 }
 
 int request_GET(struct http_request *header)
 {
+#if (DBG)
     log("GET Method");
+#endif
     response_handle_static(header);    
     return 0;
 }
 
 int request_POST(struct http_request *header)
 {
+#if (DBG)
     log("POST Method");
+#endif
     return -1;
 }
 
 int request_HEAD(struct http_request *header)
 {
+#if (DBG)
     log("HEAD Method");
+#endif
     return -1;
 }

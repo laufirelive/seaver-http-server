@@ -14,8 +14,6 @@
 
 char *url_parse(struct http_response *response, char *file);
 
-char error_message[LINE_BUF_LEN];
-
 struct mime_type Mime[] = {
     {".html", "text/html"},
     {".htm", "text/html"},
@@ -99,7 +97,7 @@ int response_handle_static(struct http_request *header)
     char        buf[LINE_BUF_LEN];
     int         file_fd;
     ssize_t     message_len;
-
+    char        error_message[LINE_BUF_LEN];
     struct http_response response;
     memset(&response, 0, sizeof(response));
     memset(&buf, 0, sizeof(buf));

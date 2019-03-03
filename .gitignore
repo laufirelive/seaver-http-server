@@ -7,3 +7,6 @@ seaver
 
 # 忽略测试网站
 /web/java-api-website/
+
+# 忽略.vscode
+.vscode

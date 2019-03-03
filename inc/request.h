@@ -18,7 +18,7 @@ struct http_request_line {
 
 // 请求体
 struct http_request_body {
-
+    // TODO
 };
 
 // 请求结构体
@@ -42,7 +42,7 @@ struct http_request_method {
 };
 
 struct http_request *request_init(int _fd);
-void request_handle(struct http_request *header);
+void *request_handle(void *args);
 void request_del(struct http_request *header);
 
 #endif

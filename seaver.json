@@ -10,7 +10,7 @@
         {
             "keep-alive" : true,
             "default-page" : "index.html",
-            "error-page" : "error1.html"
+            "error-page" : "error.html"
         },
         "epoll" :
         {

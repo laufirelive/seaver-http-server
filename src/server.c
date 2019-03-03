@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include "../inc/conf.h"
 #include "../inc/socket.h"
 #include "../inc/epoll.h"
 #include "../inc/response.h"
+#include "../inc/threadpool.h"
 #include "../inc/debug.h"
 #include "../inc/cJSON.h"
 
@@ -12,7 +14,7 @@ static void connection_wait(int serv_fd, int epoll_fd);
 
 struct conf Configuration;
 
-int conf_read()
+int conf_load()
 {
     int i, ch;
     char error_message[30] = {0}; 
@@ -174,6 +176,20 @@ void conf_init()
     memset(&Configuration, 0, sizeof(Configuration));
 }
 
+int no_signal()
+{
+    struct sigaction sign_sa;
+    memset(&sign_sa, 0, sizeof(sign_sa));
+    sign_sa.sa_handler = SIG_IGN;
+    sign_sa.sa_flags = 0;
+    if (sigaction(SIGPIPE, &sign_sa, NULL))
+        return 0;
+    else
+        return 1;
+}
+
+static threadpool_t *pool;
+
 int main(int argc, char *argv[])
 {
     int serv_fd;    // 服务器套接字
@@ -182,13 +198,19 @@ int main(int argc, char *argv[])
     struct epoll_event event;
     struct http_request *header;
 
+    // 配置文件初始化与读取
     conf_init();
-    if (conf_read() == -1)
+    if (conf_load() == -1)
     {
         log_err("Configuration deadly error.");
         return -1;
     }
-    
+
+    if (!no_signal())
+    {
+        log_err("sigaction(), errno: %d\t%s", errno, strerror(errno));
+        return -1;
+    }
     serv_fd = setServerSocket(Configuration.ipv4, Configuration.port); 
     setNonblockingMode(serv_fd);
 
@@ -204,11 +226,14 @@ int main(int argc, char *argv[])
     epoll_sign(epoll_fd, serv_fd, &event);    
     log("epoll Initialization Complete.");
 
-    // TODO ： 线程池
-    
+    // 线程池
+    pool = threadpool_create(4);
+
     // 等待连接
     printf("\n\nServer Is Working... \n\n");
     connection_wait(serv_fd, epoll_fd); 
+
+    threadpool_destroy(pool);
 
     return 0;
 }
@@ -234,7 +259,9 @@ void connection_wait(int serv_fd, int epoll_fd)
     // 处理 活跃连接
     for (i = 0; i < ep_count; i++)
     {
+#if (DBG)
         log("epoll Alive: %d event(s)", ep_count);
+#endif
         header = (struct http_request *)Events[i].data.ptr;
         _fd = header->fd;
         
@@ -242,22 +269,11 @@ void connection_wait(int serv_fd, int epoll_fd)
         if (_fd == serv_fd)
         {
             // 处理 连接请求
-            log("New Connection");
             connection_handle(_fd, epoll_fd);
-            log("Wait...");
         }
-        else // TODO : 加入线程池队列
-        {
-            // 处理请求
-            request_handle(header);
-
-            // TODO : 长连接管理
-            memset(&Events[i], 0, sizeof(Events[i]));
-            epoll_del(epoll_fd, _fd);
-            _close(_fd);
-
-            log("Wait...");
-        }
+        else 
+        // 加入线程池队列
+        threadpool_sign(pool, request_handle, header);
     }
 
  }
