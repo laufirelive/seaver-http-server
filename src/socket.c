@@ -23,18 +23,21 @@ int setServerSocket(char *ip, int port)
     fd_addr.sin_addr.s_addr = inet_addr(ip);
     fd_addr.sin_port = htons((uint16_t)port);
 
+    // 端口复用
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt_val , sizeof(int)) == -1)
     {
         log_err("setsockopt(), errno: %d\t%s", errno, strerror(errno));
 	    return -1;
     }
     
+    // 绑定
     if (bind(fd, (struct sockaddr *)&fd_addr, sizeof(fd_addr)) == -1)
     {
         log_err("bind(), errno: %d\t%s", errno, strerror(errno));
         exit(-1);
     }
 
+    // 监听
     if (listen(fd, LISTEN_MAX) == -1)
     {
         log_err("listen(), errno: %d\t%s", errno, strerror(errno));
@@ -45,6 +48,7 @@ int setServerSocket(char *ip, int port)
     return fd;
 }
 
+// 非阻塞模式
 void setNonblockingMode(int fd)
 {
     int flag = fcntl(fd, F_GETFL, 0);

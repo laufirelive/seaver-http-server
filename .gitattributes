@@ -1,3 +1,4 @@
+# 忽略
 *.js linguist-language=c
 *.html linguist-language=c
 *.css linguist-language=c
