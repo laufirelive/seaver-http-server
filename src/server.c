@@ -5,9 +5,13 @@
 #include "../inc/socket.h"
 #include "../inc/epoll.h"
 #include "../inc/response.h"
-#include "../inc/threadpool.h"
 #include "../inc/debug.h"
 #include "../inc/cJSON.h"
+
+#if (TPOOL)
+#include "../inc/threadpool.h"
+static threadpool_t *pool;
+#endif
 
 static void connection_handle(int serv_fd, int ep_fd);
 static void connection_wait(int serv_fd, int epoll_fd);
@@ -29,7 +33,9 @@ int conf_load()
     cJSON *http;
     cJSON *epoll;
     cJSON *location;
-
+#if (TPOOL)
+    cJSON *pool_size;
+#endif
     conf_file = fopen(CONF_FILE, "r");
     if (!conf_file)
     {
@@ -147,6 +153,21 @@ int conf_load()
         Configuration.max_events = cJSON_GetObjectItem(epoll, "events_max")->valueint;
         epoll_set_maxevents(Configuration.max_events);
     }
+#if (TPOOL)
+    pool_size = cJSON_GetObjectItem(server, "pool-size");
+    if (!pool_size)
+    {
+        strncpy(error_message, "must have [pool-size] block", sizeof(error_message)); 
+        goto ERROR;
+    }
+    Configuration.pool_size = pool_size->valueint;
+    if (Configuration.pool_size <= 0)
+    {
+        strncpy(error_message, "[pool-size] must >= 0", sizeof(error_message)); 
+        goto ERROR;
+    }
+#endif
+
     // and on
 
     goto DONE;
@@ -188,8 +209,6 @@ int no_signal()
         return 1;
 }
 
-static threadpool_t *pool;
-
 int main(int argc, char *argv[])
 {
     int serv_fd;    // 服务器套接字
@@ -226,14 +245,24 @@ int main(int argc, char *argv[])
     epoll_sign(epoll_fd, serv_fd, &event);    
     log("epoll Initialization Complete.");
 
+#if (TPOOL)
     // 线程池
-    pool = threadpool_create(4);
+    pool = threadpool_create(Configuration.pool_size);
+    if (!pool)
+    {
+        log_err("threadpool_create(), errno: %d\t%s", errno, strerror(errno));
+        return -1;
+    }
+    log("Threadpool Initialization Complete.");
+#endif
 
     // 等待连接
     printf("\n\nServer Is Working... \n\n");
     connection_wait(serv_fd, epoll_fd); 
 
+#if (TPOOL)
     threadpool_destroy(pool);
+#endif
 
     return 0;
 }
@@ -272,8 +301,12 @@ void connection_wait(int serv_fd, int epoll_fd)
             connection_handle(_fd, epoll_fd);
         }
         else 
+#if (TPOOL)
         // 加入线程池队列
         threadpool_sign(pool, request_handle, header);
+#else
+        request_handle(header);
+#endif
     }
 
  }

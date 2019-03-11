@@ -16,6 +16,17 @@ struct http_request_line {
     char *version;  // 版本
 };
 
+struct http_request_head_data {
+    char *field;
+    char *value;
+};
+
+// 请求头部
+typedef struct __http_request_head {
+    struct http_request_head_data          data;
+    list_head head;
+} http_request_head;
+
 // 请求体
 struct http_request_body {
     // TODO
@@ -32,7 +43,7 @@ struct http_request {
 
     // 请求行 与 请求头
     struct http_request_line          request_line;
-    struct __http_request_head       *request_head;
+    struct __http_request_head        request_head;
     struct http_request_body          request_body;
 };
 

@@ -35,7 +35,7 @@ struct http_request *request_init(int _fd)
     memset(header->message, 0, REQUEST_BUF_LEN);
     
     header->fd = _fd;
-    header->request_head = request_head_initStack();
+    LIST_HEAD_INIT(&header->request_head.head);
 
     return header;
 }
@@ -103,6 +103,7 @@ void *request_handle(void *args)
 
 #if (DBG)
     // 打印报文
+    printf("\n");
     puts(message_buf);
     log("recv_len %d", recv_len);
 #endif
@@ -128,34 +129,45 @@ void *request_handle(void *args)
     header->request_line.url_para = request_get_urlpara(header->request_line.url);
 
 #if (DBG)
-    log("Method : %s\n", header->request_line.method);
-    log("Url : %s\n", header->request_line.url);
-    log("Url_Para : %s\n", header->request_line.url_para);
-    log("Version : %s\n", header->request_line.version);
+    log("Method : %s", header->request_line.method);
+    log("Url : %s", header->request_line.url);
+    log("Url_Para : %s", header->request_line.url_para);
+    log("Version : %s", header->request_line.version);
 #endif
 
     char *rest;
     rest = __strtok_r(NULL, "\0", &save);
     // 请求头
-    rest = request_header_parse(rest, header->request_head);
+    rest = request_header_parse(rest, &header->request_head);
 
     // 请求体
     if (rest && *rest)
     {
+
 #if (DBG)
         printf("\nThe Body : \n%s\n", rest);
 #endif
     }
 
 #if (DBG)
-    printf("\nThe Head : \n");
+    printf("\nThe Request Head : \n");
 #endif
+
     struct http_request_head_data temp_data;
-    while (!request_head_isEmpty(header->request_head))
+    http_request_head *r_head;
+    list_head *index;
+    list_head *L = &header->request_head.head;
+    list_for_each(index, L)
     {
-        request_head_pop(header->request_head, &temp_data);
+        r_head = list_entry(index, http_request_head, head);
+        
+        temp_data.field = r_head->data.field;
+        temp_data.value = r_head->data.value;
+        
+        list_del(&r_head->head);
+        free(r_head);
 #if (DBG)
-        printf("%s:%s\n\n", temp_data.field, temp_data.value);
+        printf("%s:%s\n", temp_data.field, temp_data.value);
 #endif
     }
     putchar('\n');
@@ -188,6 +200,7 @@ char *request_header_parse(char *rest, http_request_head *S)
     char *key, *val;
     char *p, *q;
     int key_mode, val_mode;
+    http_request_head *temp;
 
     key = rest;
     key_mode = 1;
@@ -211,9 +224,12 @@ char *request_header_parse(char *rest, http_request_head *S)
                 int i;
                 request_backward_space(val, strlen(key));
                 request_forward_space(val);
-
-                // 加入链表     
-                request_head_push(S, key, val);
+                
+                // 加入链表
+                temp = (http_request_head *)malloc(sizeof(http_request_head));
+                temp->data.field = key;
+                temp->data.value = val;
+                list_add_tail(&S->head, &temp->head);
 
                 if (val_mode)
                 {
@@ -237,7 +253,7 @@ char *request_header_parse(char *rest, http_request_head *S)
     return NULL;
 }
 
-void request_backward_space(char *val, int len)
+inline void request_backward_space(char *val, int len)
 {
     int i = 2;
     while (len)
@@ -251,7 +267,7 @@ void request_backward_space(char *val, int len)
     }
 }
 
-void request_forward_space(char *val)
+inline void request_forward_space(char *val)
 {
     int space_count = 0;
     int i = 0;
@@ -271,7 +287,8 @@ void request_forward_space(char *val)
     }
 }
 
-char *request_get_urlpara(char *url)
+// Get 参数处理
+inline char *request_get_urlpara(char *url)
 {
     while (*url)
     {
@@ -286,13 +303,14 @@ char *request_get_urlpara(char *url)
     return NULL;
 }
 
-void request_del(struct http_request *header)
+// 删除连接
+inline void request_del(struct http_request *header)
 {
-    // memset(header->message, 0, REQUEST_BUF_LEN);
+    memset(header->message, 0, REQUEST_BUF_LEN);
     free(header);
 }
 
-int request_GET(struct http_request *header)
+inline int request_GET(struct http_request *header)
 {
 #if (DBG)
     log("GET Method");
@@ -301,7 +319,7 @@ int request_GET(struct http_request *header)
     return 0;
 }
 
-int request_POST(struct http_request *header)
+inline int request_POST(struct http_request *header)
 {
 #if (DBG)
     log("POST Method");
@@ -309,7 +327,7 @@ int request_POST(struct http_request *header)
     return -1;
 }
 
-int request_HEAD(struct http_request *header)
+inline int request_HEAD(struct http_request *header)
 {
 #if (DBG)
     log("HEAD Method");

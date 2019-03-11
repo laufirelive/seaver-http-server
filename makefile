@@ -4,7 +4,7 @@ TARGET = seaver
 
 # 编译及其参数
 CC = gcc
-CFLAG = -lm -lpthread -D_REENTRANT -DDBG=0
+CFLAG = -lm -lpthread -D_REENTRANT -DTPOOL=1 -DDBG=1
 
 # 目录
 OBJDIR = obj

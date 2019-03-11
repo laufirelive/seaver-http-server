@@ -16,6 +16,7 @@
         {
           "events_max" : 1024  
         },
+        "pool-size" : 4,
         "location" : "web/java-api-website"  
     }
 }

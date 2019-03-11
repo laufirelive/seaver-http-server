@@ -4,7 +4,7 @@
 #define CONF_STR_LEN    16
 #define CONF_LOC_LEN    256
 #define CONF_FILE       "seaver.json"
-#define DEFAULT_PAGE    "default.html"
+#define DEFAULT_PAGE    "index.html"
 
 struct conf{
     // bind
@@ -21,7 +21,9 @@ struct conf{
 
     // location
     char loc[CONF_LOC_LEN];
-
+#if (TPOOL)
+    int pool_size;
+#endif
 };
 
 extern struct conf Configuration;
