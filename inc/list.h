@@ -2,7 +2,6 @@
 #ifndef __LIST__
 #define __LIST__    1
 
-
 // 链表结构
 typedef struct __list_head {
     struct __list_head *next, *prev;

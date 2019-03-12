@@ -5,11 +5,15 @@
 #include "../inc/epoll.h"
 #include "../inc/socket.h"
 #include "../inc/debug.h"
+#include "../inc/conf.h"
+#include "../inc/timer.h"
 
 char *request_header_parse(char *rest, http_request_head *S);
 char *request_get_urlpara(char *url);
 void request_backward_space(char *val, int len);
 void request_forward_space(char *val);
+
+int request_keep_alive(struct http_request *header);
 
 int request_GET(struct http_request *header);
 int request_POST(struct http_request *header);
@@ -19,6 +23,10 @@ struct http_request_method Method[] = {
     {"GET", request_GET},
     {"POST", request_POST},
     {"HEAD", request_HEAD},
+};
+
+struct http_request_method Header_handler[] = {
+    {"Connection", request_keep_alive}
 };
 
 struct http_request *request_init(int _fd)
@@ -31,11 +39,12 @@ struct http_request *request_init(int _fd)
         return NULL;
     }
     
-    memset(header, 0, sizeof(header));
+    memset(header, 0, sizeof(struct http_request));
     memset(header->message, 0, REQUEST_BUF_LEN);
     
     header->fd = _fd;
     LIST_HEAD_INIT(&header->request_head.head);
+
 
     return header;
 }
@@ -73,7 +82,6 @@ void *request_handle(void *args)
 {
     struct http_request *header = (struct http_request *)args;
     int _fd = header->fd;
-    int epoll_fd = header->ep_fd;
     char *message_buf = header->message;
 
     int str_len;
@@ -87,8 +95,10 @@ void *request_handle(void *args)
         if (str_len < 0)
         {
             if (errno == EAGAIN)
+            {
+                epoll_reset_oneshot(header->ep_fd, header->fd, args);
                 break;
-                
+            }   
             continue;
         }
         else if (str_len == 0)
@@ -108,15 +118,11 @@ void *request_handle(void *args)
     log("recv_len %d", recv_len);
 #endif
 
-    if (recv_len == 0)
-    {
-        log_err("Client Request Format Error.");
-    }
-
     if (recv_len < 4)
     {
         log_err("Client Request is too short.");
-        goto ERROR;
+        request_shutdown(header);
+        return NULL;
     }
 
     // 线程安全 strtok， 巨坑
@@ -140,37 +146,45 @@ void *request_handle(void *args)
     // 请求头
     rest = request_header_parse(rest, &header->request_head);
 
-    // 请求体
+/*     // 请求体
     if (rest && *rest)
     {
 
 #if (DBG)
         printf("\nThe Body : \n%s\n", rest);
 #endif
-    }
+    } */
 
 #if (DBG)
     printf("\nThe Request Head : \n");
 #endif
-
     struct http_request_head_data temp_data;
+
     http_request_head *r_head;
     list_head *index;
     list_head *L = &header->request_head.head;
     list_for_each(index, L)
     {
         r_head = list_entry(index, http_request_head, head);
-        
         temp_data.field = r_head->data.field;
         temp_data.value = r_head->data.value;
-        
+
+        if (  Configuration.keep_alive &&
+             !strcmp(temp_data.field, "Connection") &&
+             !strcmp(temp_data.value, "keep-alive")
+            )
+            request_keep_alive(header);
+
         list_del(&r_head->head);
         free(r_head);
 #if (DBG)
         printf("%s:%s\n", temp_data.field, temp_data.value);
 #endif
     }
+
+#if (DBG)
     putchar('\n');
+#endif
 
     // 解析 HTTP 请求行
     int loop_len = sizeof(Method) / sizeof(*Method);
@@ -183,22 +197,39 @@ void *request_handle(void *args)
         }
     }    
 
-ERROR:
+    if (!Configuration.keep_alive || !header->in_slot)
+        request_shutdown(header);   
+    else
+        epoll_reset_oneshot(header->ep_fd, header->fd, args);
+    
 
-    request_del(header);
-    epoll_del(epoll_fd, _fd);
-    _close(_fd);
+    return NULL;
+}
+
+void *request_shutdown(void *args)
+{
+    struct http_request *header = (struct http_request *)args;
+    if (header->in_slot)
+    {
+        list_del(&header->in_slot->list);
+        header->in_slot = NULL;
+    }
+
+    epoll_del(header->ep_fd, header->fd);
+    _close(header->fd);
 
 #if (DBG)
-    log("Connection Disconnected : %d", _fd);
+    log("Connection Disconnected : %d", header->fd);
 #endif
+
+    request_del(header);
+
     return NULL;
 }
 
 char *request_header_parse(char *rest, http_request_head *S)
 {
     char *key, *val;
-    char *p, *q;
     int key_mode, val_mode;
     http_request_head *temp;
 
@@ -221,7 +252,6 @@ char *request_header_parse(char *rest, http_request_head *S)
             *rest = '\0';
             if (*key != '\0')
             {
-                int i;
                 request_backward_space(val, strlen(key));
                 request_forward_space(val);
                 
@@ -253,7 +283,7 @@ char *request_header_parse(char *rest, http_request_head *S)
     return NULL;
 }
 
-inline void request_backward_space(char *val, int len)
+void request_backward_space(char *val, int len)
 {
     int i = 2;
     while (len)
@@ -267,7 +297,7 @@ inline void request_backward_space(char *val, int len)
     }
 }
 
-inline void request_forward_space(char *val)
+void request_forward_space(char *val)
 {
     int space_count = 0;
     int i = 0;
@@ -288,7 +318,7 @@ inline void request_forward_space(char *val)
 }
 
 // Get 参数处理
-inline char *request_get_urlpara(char *url)
+char *request_get_urlpara(char *url)
 {
     while (*url)
     {
@@ -304,13 +334,16 @@ inline char *request_get_urlpara(char *url)
 }
 
 // 删除连接
-inline void request_del(struct http_request *header)
+void request_del(struct http_request *header)
 {
-    memset(header->message, 0, REQUEST_BUF_LEN);
-    free(header);
+    if (header)
+    {
+        free(header);
+        header = NULL;
+    } 
 }
 
-inline int request_GET(struct http_request *header)
+int request_GET(struct http_request *header)
 {
 #if (DBG)
     log("GET Method");
@@ -319,7 +352,7 @@ inline int request_GET(struct http_request *header)
     return 0;
 }
 
-inline int request_POST(struct http_request *header)
+int request_POST(struct http_request *header)
 {
 #if (DBG)
     log("POST Method");
@@ -327,10 +360,21 @@ inline int request_POST(struct http_request *header)
     return -1;
 }
 
-inline int request_HEAD(struct http_request *header)
+int request_HEAD(struct http_request *header)
 {
 #if (DBG)
     log("HEAD Method");
 #endif
     return -1;
 }
+
+int request_keep_alive(struct http_request *header)
+{
+    if (!header->in_slot)
+        header->in_slot = timer_add(Timer, Configuration.keep_alive_timeout, request_shutdown, header);
+    else
+        timer_reinsert(Timer, header->in_slot, Configuration.keep_alive_timeout);
+    
+    return 1;
+}
+

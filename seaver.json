@@ -9,6 +9,7 @@
         "http" :
         {
             "keep-alive" : true,
+            "keep-alive-timeout" : 60,
             "default-page" : "index.html",
             "error-page" : "error.html"
         },
@@ -16,7 +17,7 @@
         {
           "events_max" : 1024  
         },
-        "pool-size" : 4,
+        "pool-size" : 3,
         "location" : "web/java-api-website"  
     }
 }

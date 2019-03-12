@@ -39,6 +39,16 @@ int epoll_sign(int epfd, int fd, struct epoll_event *event)
     return result;
 }
 
+void epoll_reset_oneshot(int epfd, int fd, void *header)
+{
+    struct epoll_event event;
+
+    event.data.ptr = header;
+    event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+
+    epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event); 
+}
+
 int epoll_del(int epfd, int fd)
 {
     int result;

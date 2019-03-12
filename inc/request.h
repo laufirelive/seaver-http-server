@@ -4,10 +4,10 @@
 #define CR  '\r'
 #define LF  '\n'
 
-#define REQUEST_BUF_LEN 8196
+#define REQUEST_BUF_LEN 8000
 
 #include "../inc/list.h"
-
+#include "../inc/timer.h"
 // 请求行
 struct http_request_line {
     char *method;   // 方法
@@ -37,9 +37,11 @@ struct http_request {
     // fd 和 管理epoll
     int fd;
     int ep_fd;
+    timer *in_slot;
 
     // 报文
     char message[REQUEST_BUF_LEN + 1];
+
 
     // 请求行 与 请求头
     struct http_request_line          request_line;
@@ -52,8 +54,10 @@ struct http_request_method {
     int (*val)(struct http_request *);
 };
 
+
 struct http_request *request_init(int _fd);
 void *request_handle(void *args);
 void request_del(struct http_request *header);
+void *request_shutdown(void *args);
 
 #endif

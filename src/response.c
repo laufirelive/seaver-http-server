@@ -101,7 +101,7 @@ int response_handle_static(struct http_request *header)
     struct http_response response;
     memset(&response, 0, sizeof(response));
     memset(&buf, 0, sizeof(buf));
-
+    
     // 处理 URI, 查询 其 URI 是否 合法 存在 占用
     filename = url_parse(&response, header->request_line.url);
 
@@ -183,7 +183,9 @@ int response_handle_static(struct http_request *header)
         
         // 释放
         munmap(file_mem, response.file_length);
-        log("Request has been Responsed.");
+#if (DBG)
+        log("Request has been Responsed, fd : %d", header->fd);
+#endif
     }
     else
     {
@@ -193,7 +195,9 @@ int response_handle_static(struct http_request *header)
             log_err("sent failed");
             goto ERROR;
         }
-        log("Request has been Responsed.");
+#if (DBG)
+        log("Request has been Responsed, fd : %d", header->fd);
+#endif
     }
     
 
@@ -226,7 +230,7 @@ char *url_parse(struct http_response *response, char *file)
         log_err("[%s] is not exist, errno: %d\t%s", r_file, errno, strerror(errno));
 
         sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
-        printf("\n%s\n", Configuration.error_page);
+        // printf("\n%s\n", Configuration.error_page);
         if (stat(r_file, &file_stat) == -1 || S_ISDIR(file_stat.st_mode))
             memset(Configuration.error_page, 0, CONF_LOC_LEN);
 
@@ -243,7 +247,7 @@ char *url_parse(struct http_response *response, char *file)
         log_err("[%s] cannot be read, errno: %d\t%s", r_file, errno, strerror(errno));
 
         sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
-        printf("\n%s\n", Configuration.error_page);
+        // printf("\n%s\n", Configuration.error_page);
         if (stat(r_file, &file_stat) == -1 || S_ISDIR(file_stat.st_mode))
             memset(Configuration.error_page, 0, CONF_LOC_LEN);
 

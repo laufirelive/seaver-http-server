@@ -5,6 +5,8 @@
 #define CONF_LOC_LEN    256
 #define CONF_FILE       "seaver.json"
 #define DEFAULT_PAGE    "index.html"
+#define DEFAULT_TIMEOUT 60
+#include "../inc/timer.h"
 
 struct conf{
     // bind
@@ -13,6 +15,7 @@ struct conf{
     
     // http
     int keep_alive;
+    int keep_alive_timeout;
     char default_page[CONF_LOC_LEN];
     char error_page[CONF_LOC_LEN];
 
@@ -27,5 +30,5 @@ struct conf{
 };
 
 extern struct conf Configuration;
-
+extern timer_manager *Timer;
 #endif

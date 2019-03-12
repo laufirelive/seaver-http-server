@@ -7,6 +7,7 @@
 #include "../inc/response.h"
 #include "../inc/debug.h"
 #include "../inc/cJSON.h"
+#include "../inc/timer.h"
 
 #if (TPOOL)
 #include "../inc/threadpool.h"
@@ -17,6 +18,7 @@ static void connection_handle(int serv_fd, int ep_fd);
 static void connection_wait(int serv_fd, int epoll_fd);
 
 struct conf Configuration;
+timer_manager *Timer;
 
 int conf_load()
 {
@@ -123,6 +125,12 @@ int conf_load()
         else
             Configuration.keep_alive = 0;
 
+        temp = cJSON_GetObjectItem(http, "keep-alive-timeout");
+        if (temp) 
+            Configuration.keep_alive_timeout = temp->valueint;
+        else
+            Configuration.keep_alive_timeout = DEFAULT_TIMEOUT;
+            
         temp = cJSON_GetObjectItem(http, "default-page");
         if (temp)
             strncpy(Configuration.default_page, temp->valuestring, CONF_LOC_LEN);
@@ -245,6 +253,18 @@ int main(int argc, char *argv[])
     epoll_sign(epoll_fd, serv_fd, &event);    
     log("epoll Initialization Complete.");
 
+    if (Configuration.keep_alive)
+    {
+        Timer = timer_init(Configuration.keep_alive_timeout, 1);
+        if (!Timer)
+        {
+            log_err("timer_init(), errno: %d\t%s", errno, strerror(errno));
+            return -1;
+        }
+        log("Timer Initialization Complete.");
+    }
+
+
 #if (TPOOL)
     // 线程池
     pool = threadpool_create(Configuration.pool_size);
@@ -263,6 +283,9 @@ int main(int argc, char *argv[])
 #if (TPOOL)
     threadpool_destroy(pool);
 #endif
+
+    if (Configuration.keep_alive)
+        timer_destory(Timer);
 
     return 0;
 }
@@ -285,12 +308,14 @@ void connection_wait(int serv_fd, int epoll_fd)
         break;
     }
 
+#if (DBG)
+    if (ep_count > 0)
+        log("epoll Alive: %d event(s)", ep_count);
+#endif
+
     // 处理 活跃连接
     for (i = 0; i < ep_count; i++)
     {
-#if (DBG)
-        log("epoll Alive: %d event(s)", ep_count);
-#endif
         header = (struct http_request *)Events[i].data.ptr;
         _fd = header->fd;
         
@@ -301,12 +326,14 @@ void connection_wait(int serv_fd, int epoll_fd)
             connection_handle(_fd, epoll_fd);
         }
         else 
+        {
 #if (TPOOL)
-        // 加入线程池队列
-        threadpool_sign(pool, request_handle, header);
+            // 加入线程池队列
+            threadpool_sign(pool, request_handle, header);
 #else
-        request_handle(header);
+            request_handle(header);
 #endif
+        }
     }
 
  }
@@ -338,14 +365,16 @@ void connection_handle(int serv_fd, int _ep_fd)
         setNonblockingMode(clnt_fd);
         header = request_init(clnt_fd);
         header->ep_fd = _ep_fd;
-        
+
         // epoll 注册信息
         event.data.ptr = (void *)header;
         event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 
         // 注册
         epoll_sign(_ep_fd, clnt_fd, &event);
+#if (DBG)
         log("Connection Accept : %d", clnt_fd);
+#endif
     }
 
     return ;
