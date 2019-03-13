@@ -258,16 +258,6 @@ int response_handle_dynamic(struct http_request *header)
     // 处理 URI, 查询 其 URI 是否 合法 存在 占用
     filename = url_parse(&response, header->request_line.url);
 
-    if (response.status != 200 && Configuration.error_page[0] == '\0')
-    {
-        sprintf(error_message,
-            ERROR_MESSAGE
-            , response.status, response_msg_code(response.status));
-
-        response.file_length = strlen(error_message);
-        response.file_type = "html";
-    }
-
     if (reqponse_set_header
             (
                 header->fd, 
