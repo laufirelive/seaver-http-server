@@ -74,7 +74,7 @@ ssize_t _send(int t_fd, char *buffer, ssize_t buf_len)
                 buf_sent = 0;   // 重写
             else
             {
-                log_err("write(), errno: %d\t%s", errno, strerror(errno));
+                log_warn("write(), errno: %d\t%s", errno, strerror(errno));
                 return -1;
             }
         }

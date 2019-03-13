@@ -29,7 +29,7 @@ typedef struct __http_request_head {
 
 // 请求体
 struct http_request_body {
-    // TODO
+    char *s;
 };
 
 // 请求结构体

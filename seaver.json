@@ -3,7 +3,7 @@
     {
         "bind" : 
         {
-            "ipv4" : "127.0.0.1",
+            "ipv4" : "0.0.0.0",
             "port" : 3000
         },
         "http" :
@@ -11,13 +11,13 @@
             "keep-alive" : true,
             "keep-alive-timeout" : 60,
             "default-page" : "index.html",
-            "error-page" : "error.html"
+            "error-page" : "erro1r.html"
         },
         "epoll" :
         {
           "events_max" : 1024  
         },
         "pool-size" : 3,
-        "location" : "web/java-api-website"  
+        "location" : "web"  
     }
 }

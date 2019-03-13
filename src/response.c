@@ -12,8 +12,6 @@
 #include "../inc/debug.h"
 #include "../inc/conf.h"
 
-char *url_parse(struct http_response *response, char *file);
-
 struct mime_type Mime[] = {
     {".html", "text/html"},
     {".htm", "text/html"},
@@ -32,6 +30,22 @@ struct mime_type Mime[] = {
     {".css", "text/css"},
     {".txt", "text/plain"},
 };
+
+#define ERROR_MESSAGE \
+            "<html>"\
+            "<head>"\
+            "<meta charset=\"utf-8\">"\
+            "<title>Seaver Server Error</title>"\
+            "</head>"\
+            "<body style=\"text-align: center\">"\
+            "<h1>ERROR %d %s</h1>"\
+            "<hr>"\
+            "<p>This is the error page of Seaver Server.</p>"\
+            "</body>"\
+            "</html>"
+
+char *url_parse(struct http_response *response, char *file);
+void cgi_handle(char *para, struct http_request *header, char *filename);
 
 const char *response_msg_code(int stat_code)
 {
@@ -90,83 +104,107 @@ char *get_file_type(char *find)
     return find + 1;
 }
 
+int reqponse_set_header(int fd, int status, char *filetype, size_t filelen, char *message, char *cgi)
+{
+    char        buf[LINE_BUF_LEN];
+    ssize_t     message_len;
+    memset(&buf, 0, sizeof(buf));
+    
+    // 响应头 拼接
+    sprintf(buf, "HTTP/1.1 %d %s\r\n", status, response_msg_code(status));
+    strncat(message, buf, RESPONSE_BUF_LEN - strlen(message));
+
+    sprintf(buf, "Server: %s\r\n", "Seaver");
+    strncat(message, buf, RESPONSE_BUF_LEN - strlen(message));
+
+if (!cgi)
+{
+
+    sprintf(buf, "Content-length: %ld\r\n", filelen);
+    strncat(message, buf, RESPONSE_BUF_LEN - strlen(message));
+
+    sprintf(buf, "Content-type: %s\r\n", get_mime_type(filetype));
+    strncat(message, buf, RESPONSE_BUF_LEN - strlen(message));
+
+    sprintf(buf, "\r\n");
+    strncat(message, buf, RESPONSE_BUF_LEN - strlen(message));
+
+}
+
+    message_len = strlen(message);
+
+#if (DBG)
+    printf("\nResponse_head : \n%s\n", message);
+#endif
+
+    // 发送 响应头
+    if (_send(fd, message, message_len) != message_len)
+    {
+        log_warn("sent failed");
+        return -1;
+    }
+
+    return 0;
+}
+
 int response_handle_static(struct http_request *header)
 {
     char        *filename;
     char        *file_mem;
-    char        buf[LINE_BUF_LEN];
+    char        *para;
     int         file_fd;
-    ssize_t     message_len;
     char        error_message[LINE_BUF_LEN];
     struct http_response response;
     memset(&response, 0, sizeof(response));
-    memset(&buf, 0, sizeof(buf));
-    
+
     // 处理 URI, 查询 其 URI 是否 合法 存在 占用
     filename = url_parse(&response, header->request_line.url);
+
+    para = header->request_line.url_para;
 
     if (response.status != 200 && Configuration.error_page[0] == '\0')
     {
         sprintf(error_message,
-            "<html>"
-            "<head>"
-            "<meta charset=\"utf-8\">"
-            "<title>Seaver Server Error</title>"
-            "</head>"
-            "<body style=\"text-align: center\">"
-            "<h1>ERROR %d %s</h1>"
-            "<hr>"
-            "<p>This is the error page of Seaver Server.</p>"
-            "</body>"
-            "</html>"
+            ERROR_MESSAGE
             , response.status, response_msg_code(response.status));
 
         response.file_length = strlen(error_message);
         response.file_type = "html";
     }
 
-    // 响应头 拼接
-    sprintf(buf, "HTTP/1.1 %d %s\r\n", response.status, response_msg_code(response.status));
-    strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
-
-    sprintf(buf, "Content-type: %s\r\n", get_mime_type(response.file_type));
-    strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
-
-    sprintf(buf, "Content-length: %ld\r\n", response.file_length);
-    strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
-
-    sprintf(buf, "Server: %s\r\n", "Seaver");
-    strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
-    
-    sprintf(buf, "\r\n");
-    strncat(response.message, buf, RESPONSE_BUF_LEN - strlen(response.message));
-
-    message_len = strlen(response.message);
-
-#if (DBG)
-    printf("\nResponse_head : \n%s\n", response.message);
-#endif
-
-    // 发送 响应头
-    if (_send(header->fd, response.message, message_len) != message_len)
-    {
-        log_err("sent failed");
+    if (reqponse_set_header
+            (
+                header->fd, 
+                response.status, 
+                response.file_type, 
+                response.file_length, 
+                response.message, 
+                para
+            )
+        )
         goto ERROR;
-    }
 
     // 发送 响应体
     if (response.status == 200 || Configuration.error_page[0] != '\0')
     {
+        if (para)
+        {
+            cgi_handle(para, header, filename);
+#if (DBG)
+            log("Request has been Responsed, fd : %d", header->fd);
+#endif
+            goto OUT;
+        }
         // 打开文件
         if ((file_fd = open(filename, O_RDONLY)) == -1)
         {
-            log_err("open(%s), errno: %d\t%s", filename, errno, strerror(errno));
+            log_warn("open(%s), errno: %d\t%s", filename, errno, strerror(errno));
             goto ERROR;
         }
         // 映射至内存
         if ((file_mem = mmap(NULL, response.file_length, PROT_READ, MAP_PRIVATE, file_fd, 0)) == (void *)-1)
         {
-            log_err("mmap(), errno: %d\t%s", errno, strerror(errno));
+            log_warn("mmap(), errno: %d\t%s", errno, strerror(errno));
 
             close(file_fd);
             goto ERROR;
@@ -177,7 +215,8 @@ int response_handle_static(struct http_request *header)
         // 发送内存中的文件数据
         if (_send(header->fd, file_mem, response.file_length) != response.file_length)
         {
-            log_err("sent failed");
+            munmap(file_mem, response.file_length);
+            log_warn("sent failed");
             goto ERROR;
         }
         
@@ -192,7 +231,7 @@ int response_handle_static(struct http_request *header)
         puts(error_message);
         if (_send(header->fd, error_message, response.file_length) != response.file_length)
         {
-            log_err("sent failed");
+            log_warn("sent failed");
             goto ERROR;
         }
 #if (DBG)
@@ -202,10 +241,104 @@ int response_handle_static(struct http_request *header)
     
 
 ERROR:
+OUT :
 
     memset(filename, 0, strlen(filename));
     free(filename);
     return 0;
+}
+
+int response_handle_dynamic(struct http_request *header)
+{
+    char        *filename;
+    char        error_message[LINE_BUF_LEN];
+    struct http_response response;
+    memset(&response, 0, sizeof(response));
+
+    // 处理 URI, 查询 其 URI 是否 合法 存在 占用
+    filename = url_parse(&response, header->request_line.url);
+
+    if (response.status != 200 && Configuration.error_page[0] == '\0')
+    {
+        sprintf(error_message,
+            ERROR_MESSAGE
+            , response.status, response_msg_code(response.status));
+
+        response.file_length = strlen(error_message);
+        response.file_type = "html";
+    }
+
+    if (reqponse_set_header
+            (
+                header->fd, 
+                response.status, 
+                response.file_type, 
+                response.file_length, 
+                response.message, 
+                (char *)1
+            )
+        )
+        goto ERROR;
+
+    if (response.status == 200 || Configuration.error_page[0] != '\0')
+    {
+        cgi_handle(header->request_body.s, header, filename);
+#if (DBG)
+        log("Request has been Responsed, fd : %d", header->fd);
+#endif
+        goto OUT;
+    }
+    else
+    {
+        puts(error_message);
+        if (_send(header->fd, error_message, response.file_length) != response.file_length)
+        {
+            log_warn("sent failed");
+            goto ERROR;
+        }
+#if (DBG)
+        log("Request has been Responsed, fd : %d", header->fd);
+#endif
+    }
+    
+
+ERROR:
+OUT :
+
+    memset(filename, 0, strlen(filename));
+    free(filename);
+    return 0;
+
+}
+
+void cgi_handle(char *para, struct http_request *header, char *filename)
+{
+    __pid_t pid;
+    int pipe_fd[2];
+
+    int str_len = sizeof(char *) * (strlen(para) + QUSTR_LEN) + 1;
+    char *str = (char *)malloc(str_len);
+    
+    memset(str, '\0', str_len);
+    sprintf(str, "%s%s", QUSTR, para);
+
+    char *arg[] = {PYTHON_LOC, filename, NULL};   
+    char *envp[] = {str, NULL};    
+
+    pipe(pipe_fd);
+
+ #if (DBG)
+    log("%s", str);
+ #endif
+
+    if ((pid = fork()) == 0)
+    {
+        dup2(header->fd, STDOUT_FILENO);
+        //dup2()
+        execve(arg[0], arg, envp);
+    }
+    
+    free(str);
 }
 
 char *url_parse(struct http_response *response, char *file)
@@ -227,7 +360,7 @@ char *url_parse(struct http_response *response, char *file)
  {
     if (stat(r_file, &file_stat) == -1)
     {
-        log_err("[%s] is not exist, errno: %d\t%s", r_file, errno, strerror(errno));
+        log_warn("[%s] is not exist, errno: %d\t%s", r_file, errno, strerror(errno));
 
         sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
         // printf("\n%s\n", Configuration.error_page);
@@ -244,7 +377,7 @@ char *url_parse(struct http_response *response, char *file)
     }
     else if (!(S_ISREG(file_stat.st_mode)) || !(S_IRUSR & file_stat.st_mode))
     {
-        log_err("[%s] cannot be read, errno: %d\t%s", r_file, errno, strerror(errno));
+        log_warn("[%s] cannot be read, errno: %d\t%s", r_file, errno, strerror(errno));
 
         sprintf(r_file, "%s/%s", Configuration.loc, Configuration.error_page);
         // printf("\n%s\n", Configuration.error_page);
@@ -263,11 +396,11 @@ char *url_parse(struct http_response *response, char *file)
     break;
  }
 
-// #if (DBG)
-//     log("file_name : %s", r_file);
-//     log("file_type : %s", response->file_type);
-//     log("file_leng : %lu", response->file_length);
-// #endif
+ #if (DBG)
+     log("file_name : %s", r_file);
+     log("file_type : %s", response->file_type);
+     log("file_leng : %lu", response->file_length);
+ #endif
 
     return r_file;
 }

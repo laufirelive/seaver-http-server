@@ -304,7 +304,7 @@ void connection_wait(int serv_fd, int epoll_fd)
     ep_count = epoll_wait(epoll_fd, Events, events_max, -1);
     if (ep_count == -1)
     {
-        log_err("epoll_wait(), errno: %d\t%s", errno, strerror(errno));
+        log_warn("epoll_wait(), errno: %d\t%s", errno, strerror(errno));
         break;
     }
 
@@ -357,7 +357,7 @@ void connection_handle(int serv_fd, int _ep_fd)
         if (clnt_fd < 0)
         {
             if (errno != EAGAIN && errno != EWOULDBLOCK)
-                log_err("accept(), errno: %d\t%s", errno, strerror(errno));
+                log_warn("accept(), errno: %d\t%s", errno, strerror(errno));
             
             return ;
         }

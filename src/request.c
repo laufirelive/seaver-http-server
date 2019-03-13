@@ -35,7 +35,7 @@ struct http_request *request_init(int _fd)
     header = (struct http_request *)malloc(sizeof(struct http_request));
     if (!header)
     {
-        log_err("malloc(), errno: %d\t%s", errno, strerror(errno));
+        log_warn("malloc(), errno: %d\t%s", errno, strerror(errno));
         return NULL;
     }
     
@@ -120,7 +120,7 @@ void *request_handle(void *args)
 
     if (recv_len < 4)
     {
-        log_err("Client Request is too short.");
+        log_warn("Client Request is too short.");
         request_shutdown(header);
         return NULL;
     }
@@ -146,14 +146,14 @@ void *request_handle(void *args)
     // 请求头
     rest = request_header_parse(rest, &header->request_head);
 
-/*     // 请求体
+    // 请求体
     if (rest && *rest)
     {
-
+        header->request_body.s = rest;
 #if (DBG)
         printf("\nThe Body : \n%s\n", rest);
 #endif
-    } */
+    }
 
 #if (DBG)
     printf("\nThe Request Head : \n");
@@ -338,6 +338,7 @@ void request_del(struct http_request *header)
 {
     if (header)
     {
+        memset(header, 0, sizeof(*header));
         free(header);
         header = NULL;
     } 
@@ -357,6 +358,7 @@ int request_POST(struct http_request *header)
 #if (DBG)
     log("POST Method");
 #endif
+    response_handle_dynamic(header);
     return -1;
 }
 
