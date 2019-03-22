@@ -20,7 +20,7 @@ static void connection_wait(int serv_fd, int epoll_fd);
 struct conf Configuration;
 timer_manager *Timer;
 
-int conf_load()
+int conf_load(char *CONF_FILE)
 {
     int i, ch;
     char error_message[30] = {0}; 
@@ -41,15 +41,15 @@ int conf_load()
     conf_file = fopen(CONF_FILE, "r");
     if (!conf_file)
     {
-        log_err("fopen(\"" CONF_FILE "\"), errno: %d\t%s", errno, strerror(errno));
+        log_err("fopen(\"%s\"), errno: %d\t%s", CONF_FILE, errno, strerror(errno));
          return -1;
     }
     
     fseek(conf_file, 0, SEEK_END);
     conf_len = ftell(conf_file);
     if (conf_len == 0)
-    {
-        log_err("Configuration file [ " CONF_FILE " ] is empty.");
+    { 
+        log_err("Configuration file [ %s ] is empty.", CONF_FILE);
         fclose(conf_file);
         return -1;
     }
@@ -182,7 +182,7 @@ int conf_load()
     
 // 错误出口
 ERROR :
-    log_err("[" CONF_FILE "] %s.", error_message);
+    log_err("[ %s ] %s.", CONF_FILE, error_message);
 
     cJSON_Delete(root);
     free(docment);
@@ -225,9 +225,15 @@ int main(int argc, char *argv[])
     struct epoll_event event;
     struct http_request *header;
 
+    if (argc != 2)
+    {
+        log_err("Usage: %s [Config File]", argv[0]);
+        return -1;
+    }
+
     // 配置文件初始化与读取
     conf_init();
-    if (conf_load() == -1)
+    if (conf_load(argv[1]) == -1)
     {
         log_err("Configuration deadly error.");
         return -1;

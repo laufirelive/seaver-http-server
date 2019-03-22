@@ -30,5 +30,6 @@ struct http_response {
 
 int response_handle_static(struct http_request *header);
 int response_handle_dynamic(struct http_request *header);
+int response_handle_HEAD(struct http_request *header);
 
 #endif

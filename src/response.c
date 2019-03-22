@@ -301,6 +301,41 @@ OUT :
 
 }
 
+int response_handle_HEAD(struct http_request *header)
+{
+    char        *filename;
+    char        error_message[LINE_BUF_LEN];
+    struct http_response response;
+    memset(&response, 0, sizeof(response));
+
+    // 处理 URI, 查询 其 URI 是否 合法 存在 占用
+    filename = url_parse(&response, header->request_line.url);
+
+    if (response.status != 200 && Configuration.error_page[0] == '\0')
+    {
+        sprintf(error_message,
+            ERROR_MESSAGE
+            , response.status, response_msg_code(response.status));
+
+        response.file_length = strlen(error_message);
+        response.file_type = "html";
+    }
+
+    reqponse_set_header
+    (
+        header->fd, 
+        response.status, 
+        response.file_type, 
+        response.file_length, 
+        response.message, 
+        NULL
+    );
+
+    memset(filename, 0, strlen(filename));
+    free(filename);
+    return 0;
+}
+
 void cgi_handle(char *para, struct http_request *header, char *filename)
 {
     __pid_t pid;

@@ -3,7 +3,6 @@
 
 #define CONF_STR_LEN    16
 #define CONF_LOC_LEN    256
-#define CONF_FILE       "seaver.json"
 #define DEFAULT_PAGE    "index.html"
 #define DEFAULT_TIMEOUT 60
 #include "../inc/timer.h"

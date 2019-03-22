@@ -367,6 +367,7 @@ int request_HEAD(struct http_request *header)
 #if (DBG)
     log("HEAD Method");
 #endif
+    response_handle_HEAD(header);
     return -1;
 }
 
